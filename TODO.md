@@ -1,0 +1,2 @@
+- Implement algorithm to browse roads and print stats
+- Implement a benchmark system between different functions
