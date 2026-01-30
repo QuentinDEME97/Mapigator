@@ -1,6 +1,8 @@
-use std::fs;
+use std::fs::{self, File};
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
+
+use crate::overpass::{OverpassElement, OverpassResponse};
 
 pub fn save_data<T: Serialize>(
     data: &T,
@@ -37,4 +39,11 @@ pub fn save_data<T: Serialize>(
     fs::write(&filename, json_content)?;
     
     Ok(filename)
+}
+
+pub fn load_file(filename: &str) -> Result<OverpassResponse, Box<dyn std::error::Error>> {
+    let json_file_path = format!("data/{}", filename);
+    let file = File::open(&json_file_path)?;
+    let roads: OverpassResponse = serde_json::from_reader(file)?;
+    Ok(roads)
 }

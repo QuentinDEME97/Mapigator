@@ -1,11 +1,21 @@
+use crate::graph::roads_to_graph;
+
 mod nominatim;
 mod overpass;
 mod file;
 mod benchmark;
 mod analysis;
+mod graph;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let query = "Paris";
+    let roads = file::load_file("Caen_Calvados_Normandie_France_métropolitaine_14000_France_149197_relation_1769808062604ms.json")?;
+    let graph = roads_to_graph(roads);
+    graph.describe();
+    Ok(())
+}
+
+fn query_and_compute() -> Result<(), Box<dyn std::error::Error>> {
+       let query = "Caen";
 
     println!("Searching location for '{}'...", query);
 
@@ -69,7 +79,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let speedup = bench1.duration.as_secs_f64() / bench2.duration.as_secs_f64();
         println!("  Parallel is {:.2}x faster", speedup);
     }
-
-
     Ok(())
 }

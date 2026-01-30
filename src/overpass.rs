@@ -12,6 +12,9 @@ pub struct OverpassElement {
     pub element_type: String,
     pub id: i64,
     pub tags: Option<std::collections::HashMap<String, String>>,
+    pub nodes: Option<Vec<i64>>,
+    pub lat: Option<f64>,
+    pub lon: Option<f64>,
 }
 
 pub fn get_roads(osm_type: &str, osm_id: i64) -> Result<OverpassResponse, Box<dyn std::error::Error>> {
@@ -42,6 +45,8 @@ pub fn get_roads(osm_type: &str, osm_id: i64) -> Result<OverpassResponse, Box<dy
             way["highway"](area.searchArea);
         );
         out body;
+        >;
+        out skel qt;
         "#,
         area_id
     );
