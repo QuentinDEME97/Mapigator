@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use rayon::prelude::*;
+
 use crate::{math::graph::{INF, Link, MatrixResult, Node, OrientedGraph}, overpass::{DRIVABLE_HIGHWAYS, OverpassElement, OverpassResponse}};
 
 impl Node {
@@ -105,6 +107,48 @@ impl OrientedGraph {
         }
       }
       MatrixResult { dists, id_map, size: n }
+    }
+
+    pub fn floyd_warshall_par(&self) -> MatrixResult {
+        let (mut dists, id_map, n) = prepare_matrix(self);
+
+        // Boucle K séquentielle (obligatoire)
+        for k in 0..n {
+            // Astuce Rust : On extrait la ligne K pour la lire sans conflit
+            // pendant qu'on modifie le reste de la matrice en parallèle.
+            let k_row_start = k * n;
+            let k_row = dists[k_row_start..k_row_start + n].to_vec(); // Copie de la ligne k
+
+            // On traite chaque ligne 'i' en parallèle
+            // chunks_mut(n) découpe le gros vecteur en tranches de taille N (une ligne = une tranche)
+            dists.par_chunks_mut(n)
+                .enumerate() // On a besoin de savoir quel est l'index 'i'
+                .for_each(|(i, row_i)| {
+                    
+                    // row_i est la ligne 'i' entière que ce thread doit mettre à jour
+                    
+                    // On récupère dist[i][k] (la distance pour aller au pivot)
+                    // Note: row_i contient n éléments. L'élément k est à l'index k localement.
+                    let dist_ik = row_i[k]; 
+
+                    // Petite opti : si i ne peut pas aller à k, pas de raccourci possible
+                    if dist_ik == INF { return; }
+
+                    // Boucle J (interne à la ligne)
+                    for j in 0..n {
+                        let dist_kj = k_row[j]; // Lecture dans la copie de la ligne k
+
+                        if dist_kj != INF {
+                            let new_dist = dist_ik + dist_kj;
+                            if new_dist < row_i[j] {
+                                row_i[j] = new_dist;
+                            }
+                        }
+                    }
+                });
+        }
+
+        MatrixResult { dists, id_map, size: n }
     }
 
     pub fn describe(&self) {

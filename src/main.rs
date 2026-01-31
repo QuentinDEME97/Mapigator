@@ -32,8 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         (2, 4, 4.00),
         (2, 3, 3.00),
         (3, 2, 3.00),
-        (3, 4, 1.00),
-        (3, 5, 8.00),
+        (3, 4, 2.00),
+        (3, 5, 5.00),
         (5, 3, 8.00),
         (5, 6, 10.00),
         (5, 0, 12.00),
@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Affichage
     display_matrix(&matrix, n, &id_map);
     println!("{:?}", id_map);
-    let floyd_matrix = graph.floyd_warshall_seq();
+    let floyd_matrix = graph.floyd_warshall_par();
     display_matrix(&floyd_matrix.dists, n, &id_map);
     Ok(())
 }
