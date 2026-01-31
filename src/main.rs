@@ -71,6 +71,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Affichage
     display_matrix(&matrix, n, &id_map);
     println!("{:?}", id_map);
+    let floyd_matrix = graph.floyd_warshall_seq();
+    display_matrix(&floyd_matrix.dists, n, &id_map);
     Ok(())
 }
 

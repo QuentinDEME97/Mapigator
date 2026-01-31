@@ -83,6 +83,30 @@ impl OrientedGraph {
             .unwrap_or_default()
     }
 
+    pub fn floyd_warshall_seq(&self) -> MatrixResult {
+      let (mut dists, id_map, n) = prepare_matrix(self);
+
+      for k in 0..n {
+        for i in 0..n {
+          let dist_ik = dists[i * n + k];
+          if dist_ik == INF { continue; }
+
+          for j in 0..n {
+            let dist_kj = dists[k * n + j];
+            if dist_kj == INF { continue; }
+
+            let new_dist = dist_ik + dist_kj;
+            let idx = i * n + j;
+
+            if new_dist < dists[idx] {
+              dists[idx] = new_dist;
+            }
+          }
+        }
+      }
+      MatrixResult { dists, id_map, size: n }
+    }
+
     pub fn describe(&self) {
         println!("┌─ Road Graph Statistics");
         println!("│");
