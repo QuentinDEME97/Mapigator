@@ -143,3 +143,92 @@ fn query_and_compute() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*; // Importe tout ce qui est défini dans le fichier parent
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_floyd_warshall_topology() {
+        let mut graph = OrientedGraph::new(); // Ou OrientedGraph selon votre nommage
+
+        // 1. Add nodes
+        // Les coordonnées importent peu ici car on force les distances
+        graph.add_node(Node::new(0, 49.18, -0.36));
+        graph.add_node(Node::new(1, 49.19, -0.35));
+        graph.add_node(Node::new(2, 49.20, -0.35));
+        graph.add_node(Node::new(3, 49.22, -0.34));
+        graph.add_node(Node::new(4, 49.21, -0.36));
+        graph.add_node(Node::new(5, 49.20, -0.37));
+        graph.add_node(Node::new(6, 49.20, -0.37));
+
+        // 2. Add links (Source, Dest, Distance Forcée)
+        let connections = vec![
+            (0, 1, 1.00), (1, 0, 1.00),
+            (1, 2, 2.00), (2, 1, 2.00),
+            (2, 4, 4.00), // Chemin vers 4
+            (2, 3, 3.00), (3, 2, 3.00),
+            (3, 4, 2.00), // Chemin vers 4 plus court depuis 3
+            (3, 5, 5.00), (5, 3, 8.00),
+            (5, 6, 10.00), (6, 5, 10.00),
+            (5, 0, 12.00), (0, 5, 12.00),
+            (6, 0, 7.00), (0, 6, 7.00)
+        ];
+
+        for (i, (src_id, dst_id, distance)) in connections.iter().enumerate() {
+            if let (Some(origin), Some(dest)) = (graph.nodes.get(src_id), graph.nodes.get(dst_id)) {
+                let mut tags = HashMap::new();
+                tags.insert("highway".to_string(), "test_road".to_string());
+                
+                // On utilise la méthode with_fixed_distance
+                let link = Link::with_fixed_distance(origin, dest, i as i64, tags, *distance);
+                graph.add_link(link);
+            }
+        }
+
+        // --- Vérifications ---
+
+        // Test basique de connectivité immédiate
+        let outgoing_3 = graph.get_outgoing_links(3);
+        println!("Output of node 3 : {} links", outgoing_3.len());
+        // Node 3 va vers : 2, 4, 5. Donc 3 liens.
+        assert_eq!(outgoing_3.len(), 3, "Node 3 devrait avoir 3 sorties");
+
+        // Préparation et affichage (pour le debug visuel)
+        let (matrix_init, id_map, n) = prepare_matrix(&graph);
+        println!("\n--- Matrice Initiale (Liens directs) ---");
+        display_matrix(&matrix_init, n, &id_map);
+
+        // Exécution de l'algorithme parallèle
+        let result = graph.floyd_warshall_par();
+        
+        println!("\n--- Résultat Floyd-Warshall ---");
+        display_matrix(&result.dists, n, &id_map);
+
+        // --- Assertions sur les plus courts chemins (Validation Mathématique) ---
+        
+        // Helper pour récupérer une distance depuis le résultat
+        let get_dist = |u: i64, v: i64| -> f64 {
+            result.get_distance(u, v).unwrap_or(f64::INFINITY)
+        };
+
+        // Cas 1 : Chemin direct 0 -> 1
+        assert_eq!(get_dist(0, 1), 1.0);
+
+        // Cas 2 : Chemin multi-sauts 0 -> 4
+        // Trajet : 0 -> 1 (1.0) -> 2 (2.0) -> 4 (4.0) = Total 7.0
+        // (Alternative via 5 est beaucoup plus longue)
+        assert_eq!(get_dist(0, 4), 7.0, "Le chemin 0->4 devrait coûter 7.0");
+
+        // Cas 3 : Un chemin qui remonte "à contre-sens" des IDs
+        // Trajet 3 -> 0
+        // Option A: 3->2(3) -> 1(2) -> 0(1) = 6.0
+        // Option B: 3->5(5) -> 0(12) = 17.0
+        assert_eq!(get_dist(3, 0), 6.0, "Le chemin 3->0 devrait passer par 2 et 1");
+
+        // Cas 4 : Nœud 4 est un puits (Sink)
+        // Il reçoit des liens mais n'en émet aucun vers les autres noeuds du set
+        assert_eq!(get_dist(4, 0), f64::INFINITY, "Node 4 ne devrait pouvoir aller nulle part");
+    }
+}
