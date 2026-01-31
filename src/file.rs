@@ -2,7 +2,7 @@ use std::fs::{self, File};
 use std::time::{SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 
-use crate::overpass::{OverpassElement, OverpassResponse};
+use crate::overpass::{OverpassResponse};
 
 pub fn save_data<T: Serialize>(
     data: &T,

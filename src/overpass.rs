@@ -6,6 +6,31 @@ pub struct OverpassResponse {
     pub elements: Vec<OverpassElement>,
 }
 
+pub const DRIVABLE_HIGHWAYS: &[&str] = &[
+    // Major roads
+    "motorway",
+    "trunk",
+    "primary",
+    "secondary",
+    "tertiary",
+    
+    // Minor roads
+    "unclassified",
+    "residential",
+    
+    // Links (on/off ramps)
+    "motorway_link",
+    "trunk_link",
+    "primary_link",
+    "secondary_link",
+    "tertiary_link",
+    
+    // Other drivable
+    "living_street",
+    "service",
+    "road",  // unknown classification
+];
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct OverpassElement {
     #[serde(rename = "type")]
