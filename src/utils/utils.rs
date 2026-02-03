@@ -1,4 +1,5 @@
-use math::graph::{Node, Link, OrientedGraph};
+use std::collections::HashMap;
+use crate::math::graph::{Node, Link, OrientedGraph};
 
 pub fn get_base_graph() -> OrientedGraph {
     let mut graph = OrientedGraph::new();
@@ -145,7 +146,7 @@ pub fn get_grid_graph() -> OrientedGraph {
     graph
 }
 
-pub fn add_links_to_graph(graph: &mut OrientedGraph, connections: Vec<(i32, i32, f64)>) {
+pub fn add_links_to_graph(graph: &mut OrientedGraph, connections: Vec<(i64, i64, f64)>) {
     for (i, (src_id, dst_id, distance)) in connections.iter().enumerate() {
         // On récupère les références aux noeuds (Attention au unwrap ici, 
         // assure-toi que tes IDs dans 'connections' existent bien au dessus)
