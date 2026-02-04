@@ -85,6 +85,78 @@ impl OrientedGraph {
             .unwrap_or_default()
     }
 
+    pub fn tarjan_seq(&self) -> Vec<Vec<i64>> {
+        let mut index = 0;
+        let mut stack = Vec::new();
+        let mut on_stack = HashMap::new();
+        let mut indices = HashMap::new();
+        let mut lowlink = HashMap::new();
+        let mut sccs = Vec::new();
+
+        // On lance le DFS pour chaque nœud non visité
+        for &node_id in self.nodes.keys() {
+            if !indices.contains_key(&node_id) {
+                self.strongconnect(
+                    node_id,
+                    &mut index,
+                    &mut stack,
+                    &mut on_stack,
+                    &mut indices,
+                    &mut lowlink,
+                    &mut sccs,
+                );
+            }
+        }
+        sccs
+    }
+
+    fn strongconnect(
+        &self,
+        v: i64,
+        index: &mut usize,
+        stack: &mut Vec<i64>,
+        on_stack: &mut HashMap<i64, bool>,
+        indices: &mut HashMap<i64, usize>,
+        lowlink: &mut HashMap<i64, usize>,
+        sccs: &mut Vec<Vec<i64>>,
+    ) {
+        // Initialisation du nœud v
+        indices.insert(v, *index);
+        lowlink.insert(v, *index);
+        *index += 1;
+        stack.push(v);
+        on_stack.insert(v, true);
+
+        // Exploration des successeurs
+        if let Some(links_indices) = self.adjacency.get(&v) {
+            for &link_idx in links_indices {
+                let w = self.links[link_idx].dest_id;
+                
+                if !indices.contains_key(&w) {
+                    // Successeur non encore visité
+                    self.strongconnect(w, index, stack, on_stack, indices, lowlink, sccs);
+                    let new_low = std::cmp::min(lowlink[&v], lowlink[&w]);
+                    lowlink.insert(v, new_low);
+                } else if *on_stack.get(&w).unwrap_or(&false) {
+                    // Le successeur est dans la pile (fait partie de la SCC courante)
+                    let new_low = std::cmp::min(lowlink[&v], indices[&w]);
+                    lowlink.insert(v, new_low);
+                }
+            }
+        }
+
+        // Si v est un nœud racine, on dépile pour extraire la SCC
+        if lowlink[&v] == indices[&v] {
+            let mut scc = Vec::new();
+            while let Some(node) = stack.pop() {
+                on_stack.insert(node, false);
+                scc.push(node);
+                if node == v { break; }
+            }
+            sccs.push(scc);
+        }
+    }
+
     pub fn floyd_warshall_seq(&self) -> MatrixResult {
       let (mut dists, id_map, n) = prepare_matrix(self);
 

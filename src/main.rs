@@ -10,7 +10,7 @@ use math::graph::{Node, Link, OrientedGraph};
 use crate::math::graph::{MatrixResult, display_matrix, prepare_matrix};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut graph = utils::get_base_graph();
+    let mut graph = utils::get_trap_graph();
 
     // Vérification
     let outgoing = graph.get_outgoing_links(3);
@@ -25,6 +25,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{:?}", id_map);
     let floyd_matrix = graph.floyd_warshall_par();
     display_matrix(&floyd_matrix.dists, n, &id_map);
+
+    let sccs = graph.tarjan_seq();
+    println!("Graph has {} strongly connected component(s) :\n{:?}",sccs.len(), sccs);
     Ok(())
 }
 
