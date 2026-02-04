@@ -1,8 +1,31 @@
 use std::collections::HashMap;
 
 use rayon::prelude::*;
+use indicatif::{ProgressBar, ProgressStyle, ParallelProgressIterator};
+use std::time::Duration;
 
 use crate::{math::graph::{INF, Link, MatrixResult, Node, OrientedGraph}, overpass::{DRIVABLE_HIGHWAYS, OverpassElement, OverpassResponse}};
+
+use std::collections::{BinaryHeap, VecDeque};
+use std::cmp::Ordering;
+
+#[derive(PartialEq)]
+struct State {
+    cost: f64,
+    node_id: i64,
+}
+
+impl Eq for State {}
+impl Ord for State {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.cost.partial_cmp(&self.cost).unwrap_or(Ordering::Equal)
+    }
+}
+impl PartialOrd for State {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 impl Node {
   pub fn new(id: i64, lat: f64, lon: f64) -> Self {
@@ -85,6 +108,119 @@ impl OrientedGraph {
             .unwrap_or_default()
     }
 
+    pub fn brandes_betweenness_par(&self) -> HashMap<i64, f64> {
+        let node_ids: Vec<i64> = self.nodes.keys().cloned().collect();
+        let len = node_ids.len() as u64;
+
+        // Création de la barre
+        let pb = ProgressBar::new(len);
+        pb.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.magenta/blue} {pos}/{len} nodes ({eta})")
+            .unwrap()
+            .progress_chars("##-"));
+
+        let global_betweenness = node_ids.par_iter()
+            .progress_with(pb) // <--- C'est ici que la magie opère
+            .map(|&s| {
+                // ... (Le contenu exact de ta fonction Brandes implémentée précédemment) ...
+                // Je remets le début pour contexte :
+                let mut stack: Vec<i64> = Vec::new();
+                let mut predecessors: HashMap<i64, Vec<i64>> = HashMap::new();
+                let mut sigma = HashMap::new();
+                let mut dist = HashMap::new();
+                
+                sigma.insert(s, 1.0);
+                dist.insert(s, 0.0);
+                
+                let mut pq = BinaryHeap::new();
+                pq.push(State { cost: 0.0, node_id: s });
+                
+                // ... (reste du Dijkstra et de l'accumulation locale) ...
+                
+                // On retourne juste la map locale pour le reduce
+                let mut local_dependency = HashMap::new();
+                // (Remplir local_dependency...)
+                local_dependency
+            })
+            .reduce(
+                || HashMap::new(),
+                |mut acc, partial| {
+                    for (k, v) in partial {
+                        *acc.entry(k).or_insert(0.0) += v;
+                    }
+                    acc
+                }
+            );
+
+        global_betweenness
+    }
+
+    pub fn brandes_betweenness_seq(&self) -> HashMap<i64, f64> {
+        let mut betweenness = HashMap::new();
+        for &id in self.nodes.keys() {
+            betweenness.insert(id, 0.0);
+        }
+
+        for &s in self.nodes.keys() {
+            // --- Étape 1 : Initialisation ---
+            let mut stack = Vec::new();
+            let mut predecessors: HashMap<i64, Vec<i64>> = HashMap::new();
+            let mut sigma = HashMap::new(); // Nombre de plus courts chemins
+            let mut dist = HashMap::new();  // Distances depuis la source s
+            
+            for &id in self.nodes.keys() {
+                sigma.insert(id, 0.0);
+                dist.insert(id, f64::INFINITY);
+            }
+
+            *sigma.get_mut(&s).unwrap() = 1.0;
+            *dist.get_mut(&s).unwrap() = 0.0;
+
+            let mut pq = BinaryHeap::new();
+            pq.push(State { cost: 0.0, node_id: s });
+
+            // --- Étape 2 : Dijkstra pour trouver les plus courts chemins ---
+            while let Some(State { cost, node_id: v }) = pq.pop() {
+                if cost > dist[&v] { continue; }
+                stack.push(v);
+
+                for link in self.get_outgoing_links(v) {
+                    let w = link.dest_id;
+                    let new_dist = dist[&v] + link.distance;
+
+                    if new_dist < dist[&w] {
+                        dist.insert(w, new_dist);
+                        pq.push(State { cost: new_dist, node_id: w });
+                        sigma.insert(w, sigma[&v]);
+                        predecessors.insert(w, vec![v]);
+                    } else if (new_dist - dist[&w]).abs() < 1e-9 {
+                        *sigma.get_mut(&w).unwrap() += sigma[&v];
+                        predecessors.entry(w).or_default().push(v);
+                    }
+                }
+            }
+
+            // --- Étape 3 : Accumulation (Rétro-propagation de la dépendance) ---
+            let mut delta = HashMap::new();
+            for &id in self.nodes.keys() {
+                delta.insert(id, 0.0);
+            }
+
+            while let Some(w) = stack.pop() {
+                if let Some(preds) = predecessors.get(&w) {
+                    for &v in preds {
+                        let fraction = (sigma[&v] / sigma[&w]) * (1.0 + delta[&w]);
+                        *delta.get_mut(&v).unwrap() += fraction;
+                    }
+                }
+                if w != s {
+                    *betweenness.get_mut(&w).unwrap() += delta[&w];
+                }
+            }
+        }
+
+        betweenness
+    }
+
     pub fn tarjan_seq(&self) -> Vec<Vec<i64>> {
         let mut index = 0;
         let mut stack = Vec::new();
@@ -93,8 +229,15 @@ impl OrientedGraph {
         let mut lowlink = HashMap::new();
         let mut sccs = Vec::new();
 
-        // On lance le DFS pour chaque nœud non visité
-        for &node_id in self.nodes.keys() {
+        let nodes: Vec<i64> = self.nodes.keys().copied().collect();
+        
+        // Barre de progression
+        let pb = ProgressBar::new(nodes.len() as u64);
+        pb.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.yellow/blue} {pos}/{len} (DFS init)")
+            .unwrap()
+            .progress_chars("##-"));
+
+        for node_id in nodes {
             if !indices.contains_key(&node_id) {
                 self.strongconnect(
                     node_id,
@@ -106,7 +249,12 @@ impl OrientedGraph {
                     &mut sccs,
                 );
             }
+            // On incrémente même si on ne lance pas strongconnect, 
+            // car on a "traité" (vérifié) le nœud.
+            pb.inc(1); 
         }
+        
+        pb.finish();
         sccs
     }
 
@@ -184,32 +332,25 @@ impl OrientedGraph {
     pub fn floyd_warshall_par(&self) -> MatrixResult {
         let (mut dists, id_map, n) = prepare_matrix(self);
 
-        // Boucle K séquentielle (obligatoire)
+        // Création de la barre
+        let pb = ProgressBar::new(n as u64);
+        pb.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} (Pivot {pos}) {eta}")
+            .unwrap()
+            .progress_chars("=>-"));
+        pb.set_message("Computing Matrix");
+
         for k in 0..n {
-            // Astuce Rust : On extrait la ligne K pour la lire sans conflit
-            // pendant qu'on modifie le reste de la matrice en parallèle.
             let k_row_start = k * n;
-            let k_row = dists[k_row_start..k_row_start + n].to_vec(); // Copie de la ligne k
+            let k_row = dists[k_row_start..k_row_start + n].to_vec();
 
-            // On traite chaque ligne 'i' en parallèle
-            // chunks_mut(n) découpe le gros vecteur en tranches de taille N (une ligne = une tranche)
             dists.par_chunks_mut(n)
-                .enumerate() // On a besoin de savoir quel est l'index 'i'
+                .enumerate()
                 .for_each(|(i, row_i)| {
-                    
-                    // row_i est la ligne 'i' entière que ce thread doit mettre à jour
-                    
-                    // On récupère dist[i][k] (la distance pour aller au pivot)
-                    // Note: row_i contient n éléments. L'élément k est à l'index k localement.
-                    let dist_ik = row_i[k]; 
-
-                    // Petite opti : si i ne peut pas aller à k, pas de raccourci possible
+                    let dist_ik = row_i[k];
                     if dist_ik == INF { return; }
 
-                    // Boucle J (interne à la ligne)
                     for j in 0..n {
-                        let dist_kj = k_row[j]; // Lecture dans la copie de la ligne k
-
+                        let dist_kj = k_row[j];
                         if dist_kj != INF {
                             let new_dist = dist_ik + dist_kj;
                             if new_dist < row_i[j] {
@@ -218,8 +359,12 @@ impl OrientedGraph {
                         }
                     }
                 });
+            
+            // On avance la barre d'un cran après chaque pivot traité
+            pb.inc(1);
         }
-
+        
+        pb.finish_with_message("Matrix computed.");
         MatrixResult { dists, id_map, size: n }
     }
 
@@ -370,7 +515,6 @@ pub fn roads_to_graph(roads: OverpassResponse) -> OrientedGraph {
   }
 
   for (i, road) in roads.elements.iter().enumerate() {
-      println!("Road #{}", i + 1);
       if let Some(tags) = &road.tags {
         if let Some(highway) = tags.get("highway") {
             if is_drivable(highway) {
@@ -425,7 +569,6 @@ pub fn roads_to_graph(roads: OverpassResponse) -> OrientedGraph {
             }
         }
       }
-      println!();
   }
   road_graph
 }
