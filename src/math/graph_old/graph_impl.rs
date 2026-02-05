@@ -387,10 +387,28 @@ impl OrientedGraph {
         println!("│");
         
         // Find nodes with most connections
-        if let Some((max_node_id, max_links)) = self.adjacency
-            .iter()
-            .max_by_key(|(_, links)| links.len()) {
-            println!("│  Max outgoing links from single node: {} (node ID: {})", max_links.len(), max_node_id);
+        // if let Some((max_node_id, max_links)) = self.adjacency
+        //     .iter()
+        //     .max_by_key(|(_, links)| links.len()) {
+        //     println!("│  Max outgoing links from single node: {} (node ID: {})", max_links.len(), max_node_id);
+        // }
+
+        if let Some(max_len) = self.adjacency.values().map(|links| links.len()).max() {
+
+            // 2. On collecte tous les IDs qui ont ce nombre exact de liens
+            let max_nodes: Vec<_> = self.adjacency
+                .iter()
+                .filter(|(_, links)| links.len() == max_len)
+                .map(|(id, _)| id)
+                .collect();
+
+            // 3. On prépare l'affichage
+            let count = max_nodes.len();
+            // On prend jusqu'à 3 éléments pour l'exemple
+            let examples: Vec<_> = max_nodes.iter().take(5).collect();
+
+            println!("│  Max outgoing links: {} (shared by {} nodes)", max_len, count);
+            println!("│  Node IDs (first 3): {:?}", examples);
         }
         
         // Count highway types

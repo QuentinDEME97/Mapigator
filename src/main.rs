@@ -3,13 +3,10 @@ mod overpass;
 mod file;
 mod benchmark;
 mod analysis;
-mod math;
 mod utils;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::time::Duration;
-use math::graph::{Node, Link, OrientedGraph};
-use crate::math::graph::{MatrixResult, display_matrix, prepare_matrix, roads_to_graph};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let mut graph = utils::get_base_graph();
@@ -33,246 +30,182 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // let brandes = graph.brandes_betweenness_par();
     // println!("{:?}", brandes);
-    query_caen_and_compute();
+    let filename = "ecouche.json";
+    // load_file_and_compute(filename);
     Ok(())
 }
 
-fn query_caen_and_compute() -> Result<(), Box<dyn std::error::Error>> {
-    let query = "Caen";
-    let m = MultiProgress::new();
+// fn load_file_and_compute(filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+//     let roads = file::load_file(filename)?;
+//     let graph = graph::roads_to_graph(roads);
 
-    // Style pour les tâches indéterminées (Recherche réseau, parsing...)
-    let spinner_style = ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {msg}")
-        .unwrap()
-        .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏");
+//     graph.describe();
 
-    // --- Étape 1 : Nominatim ---
-    let pb_net = m.add(ProgressBar::new_spinner());
-    pb_net.set_style(spinner_style.clone());
-    pb_net.set_message(format!("Searching location for '{}'...", query));
-    pb_net.enable_steady_tick(Duration::from_millis(100));
+//     // Floyd-Warshall
+//     println!("\nRunning Floyd-Warshall (All-Pairs Shortest Path)...");
+//     let floyd_matrix = graph.floyd_warshall_par();
 
-    let results = nominatim::call_nominatim(query)?;
-    pb_net.finish_with_message(format!("Found {} result(s) for '{}'", results.len(), query));
+//     // Tarjan
+//     println!("\nRunning Tarjan (SCC)...");
+//     let sccs = graph.tarjan_seq();
+//     println!(" > Found {} strongly connected component(s).", sccs.len());
+//     println!("{:?}", sccs);
 
-    // Affichage des détails (optionnel, on peut le garder)
-    for (i, result) in results.iter().enumerate() {
-        println!("Result #{} : {} ({})", i + 1, result.display_name, result.osm_type);
-    }
-
-    if let Some(result) = results.first() {
-        // --- Étape 2 : Overpass ---
-        let pb_overpass = m.add(ProgressBar::new_spinner());
-        pb_overpass.set_style(spinner_style.clone());
-        pb_overpass.set_message("Downloading roads from Overpass...");
-        pb_overpass.enable_steady_tick(Duration::from_millis(100));
-
-        let roads = overpass::get_roads(&result.osm_type, result.osm_id)?;
-        pb_overpass.finish_with_message(format!("Downloaded {} elements.", roads.elements.len()));
-
-        // --- Étape 3 : Sauvegarde ---
-        let pb_save = m.add(ProgressBar::new_spinner());
-        pb_save.set_style(spinner_style.clone());
-        pb_save.set_message("Saving data to file...");
-        pb_save.enable_steady_tick(Duration::from_millis(100));
-
-        let filename = file::save_data(
-            &roads,
-            &result.display_name,
-            result.osm_id,
-            &result.osm_type,
-        )?;
-        pb_save.finish_with_message(format!("Saved to {}", filename));
-
-        // --- Étape 4 : Construction du Graphe ---
-        println!("Building graph...");
-        let mut graph = roads_to_graph(roads);
-
-        // --- Étape 5 : Algorithmes avec barres de progression ---
-        // Floyd-Warshall
-        println!("\nRunning Floyd-Warshall (All-Pairs Shortest Path)...");
-        let floyd_matrix = graph.floyd_warshall_par();
-
-        // Tarjan
-        println!("\nRunning Tarjan (SCC)...");
-        let sccs = graph.tarjan_seq();
-        println!(" > Found {} strongly connected component(s).", sccs.len());
-
-        // Brandes
-        println!("\nRunning Brandes (Betweenness Centrality)...");
-        let brandes = graph.brandes_betweenness_par();
-        
-        // Affichage rapide du top 5 pour vérifier
-        let mut sorted_brandes: Vec<_> = brandes.iter().collect();
-        sorted_brandes.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
-        println!(" > Top 5 central nodes:");
-        for (id, score) in sorted_brandes.iter().take(5) {
-            println!("   - Node {}: {:.2}", id, score);
-        }
-    }
-    Ok(())
-}
-
-fn query_and_compute() -> Result<(), Box<dyn std::error::Error>> {
-    let query = "Caen";
-
-    println!("Searching location for '{}'...", query);
-
-    let results = nominatim::call_nominatim(query)?;
-
-    println!("Found {} result(s) !\n", results.len());
+//     // Brandes
+//     println!("\nRunning Brandes (Betweenness Centrality)...");
+//     let brandes = graph.brandes_betweenness_par();
     
-    for (i, result) in results.iter().enumerate() {
-        println!("Result #{}", i + 1);
-        println!("  {:<15} : {}", "osm_id", result.osm_id);
-        println!("  {:<15} : {}", "osm_type", result.osm_type);
-        println!("  {:<15} : {}", "place_id", result.place_id);
-        println!("  {:<15} : {}", "Name", result.display_name);
-        println!("  {:<15} : {}, {}", "Coordinates", result.lat, result.lon);
-        println!("  {:<15} : {} ({})", "Type", result.result_type, result.class);
-        println!();
-    }
+//     // Affichage rapide du top 5 pour vérifier
+//     let mut sorted_brandes: Vec<_> = brandes.iter().collect();
+//     sorted_brandes.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+//     println!(" > Top 5 central nodes:");
+//     for (id, score) in sorted_brandes.iter().take(5) {
+//         println!("   - Node {}: {:.2}", id, score);
+//     }
 
-    if let Some(result) = results.first() {
-        println!("Performing Overpass Request for result #1...\n");
-        let roads = overpass::get_roads(&result.osm_type, result.osm_id)?;
+//     Ok(())
+// }
 
-        println!("Found {} roads !\n", roads.elements.len());
+// fn query_city_and_compute() -> Result<(), Box<dyn std::error::Error>> {
+//     let query = "Ecouché";
+//     let m = MultiProgress::new();
 
-        let filename = file::save_data(
-            &roads,
-            &result.display_name,
-            result.osm_id,
-            &result.osm_type,
-        )?;
+//     // Style pour les tâches indéterminées (Recherche réseau, parsing...)
+//     let spinner_style = ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] {msg}")
+//         .unwrap()
+//         .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏");
+
+//     // --- Étape 1 : Nominatim ---
+//     let pb_net = m.add(ProgressBar::new_spinner());
+//     pb_net.set_style(spinner_style.clone());
+//     pb_net.set_message(format!("Searching location for '{}'...", query));
+//     pb_net.enable_steady_tick(Duration::from_millis(100));
+
+//     let results = nominatim::call_nominatim(query)?;
+//     pb_net.finish_with_message(format!("Found {} result(s) for '{}'", results.len(), query));
+
+//     // Affichage des détails (optionnel, on peut le garder)
+//     for (i, result) in results.iter().enumerate() {
+//         println!("Result #{} : {} ({})", i + 1, result.display_name, result.osm_type);
+//     }
+
+//     if let Some(result) = results.first() {
+//         // --- Étape 2 : Overpass ---
+//         let pb_overpass = m.add(ProgressBar::new_spinner());
+//         pb_overpass.set_style(spinner_style.clone());
+//         pb_overpass.set_message("Downloading roads from Overpass...");
+//         pb_overpass.enable_steady_tick(Duration::from_millis(100));
+
+//         let roads = overpass::get_roads(&result.osm_type, result.osm_id)?;
+//         pb_overpass.finish_with_message(format!("Downloaded {} elements.", roads.elements.len()));
+
+//         // --- Étape 3 : Sauvegarde ---
+//         let pb_save = m.add(ProgressBar::new_spinner());
+//         pb_save.set_style(spinner_style.clone());
+//         pb_save.set_message("Saving data to file...");
+//         pb_save.enable_steady_tick(Duration::from_millis(100));
+
+//         let filename = file::save_data(
+//             &roads,
+//             &result.display_name,
+//             result.osm_id,
+//             &result.osm_type,
+//         )?;
+//         pb_save.finish_with_message(format!("Saved to {}", filename));
+
+//         // --- Étape 4 : Construction du Graphe ---
+//         println!("Building graph...");
+//         let mut graph = roads_to_graph(roads);
+
+//         // --- Étape 5 : Algorithmes avec barres de progression ---
+//         // Floyd-Warshall
+//         println!("\nRunning Floyd-Warshall (All-Pairs Shortest Path)...");
+//         let floyd_matrix = graph.floyd_warshall_par();
+
+//         // Tarjan
+//         println!("\nRunning Tarjan (SCC)...");
+//         let sccs = graph.tarjan_seq();
+//         println!(" > Found {} strongly connected component(s).", sccs.len());
+
+//         // Brandes
+//         println!("\nRunning Brandes (Betweenness Centrality)...");
+//         let brandes = graph.brandes_betweenness_par();
         
-        println!("✓ Saved to: {}\n", filename);
+//         // Affichage rapide du top 5 pour vérifier
+//         let mut sorted_brandes: Vec<_> = brandes.iter().collect();
+//         sorted_brandes.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+//         println!(" > Top 5 central nodes:");
+//         for (id, score) in sorted_brandes.iter().take(5) {
+//             println!("   - Node {}: {:.2}", id, score);
+//         }
+//     }
+//     Ok(())
+// }
 
-        // for (i, road) in roads.elements.iter().take(5).enumerate() {
-        //     println!("Road #{}", i + 1);
-        //     if let Some(tags) = &road.tags {
-        //         println!("  {:<15} : {}", "Name", tags.get("name").unwrap_or(&"Unnamed".to_string()));
-        //         println!("  {:<15} : {}", "Highway Type", tags.get("highway").unwrap_or(&"unknown".to_string()));
-        //     }
-        //     println!();
-        // }
+// fn query_and_compute() -> Result<(), Box<dyn std::error::Error>> {
+//     let query = "Caen";
 
-        // Benchmark different implementations
-        println!("\n🔬 Running benchmarks...\n");
+//     println!("Searching location for '{}'...", query);
+
+//     let results = nominatim::call_nominatim(query)?;
+
+//     println!("Found {} result(s) !\n", results.len());
+    
+//     for (i, result) in results.iter().enumerate() {
+//         println!("Result #{}", i + 1);
+//         println!("  {:<15} : {}", "osm_id", result.osm_id);
+//         println!("  {:<15} : {}", "osm_type", result.osm_type);
+//         println!("  {:<15} : {}", "place_id", result.place_id);
+//         println!("  {:<15} : {}", "Name", result.display_name);
+//         println!("  {:<15} : {}, {}", "Coordinates", result.lat, result.lon);
+//         println!("  {:<15} : {} ({})", "Type", result.result_type, result.class);
+//         println!();
+//     }
+
+//     if let Some(result) = results.first() {
+//         println!("Performing Overpass Request for result #1...\n");
+//         let roads = overpass::get_roads(&result.osm_type, result.osm_id)?;
+
+//         println!("Found {} roads !\n", roads.elements.len());
+
+//         let filename = file::save_data(
+//             &roads,
+//             &result.display_name,
+//             result.osm_id,
+//             &result.osm_type,
+//         )?;
         
-        let (bench1, stats1) = benchmark::bench("Simple Analysis", || {
-            analysis::analyze_roads_simple(&roads)
-        });
-        bench1.print();
+//         println!("✓ Saved to: {}\n", filename);
+
+//         // for (i, road) in roads.elements.iter().take(5).enumerate() {
+//         //     println!("Road #{}", i + 1);
+//         //     if let Some(tags) = &road.tags {
+//         //         println!("  {:<15} : {}", "Name", tags.get("name").unwrap_or(&"Unnamed".to_string()));
+//         //         println!("  {:<15} : {}", "Highway Type", tags.get("highway").unwrap_or(&"unknown".to_string()));
+//         //     }
+//         //     println!();
+//         // }
+
+//         // Benchmark different implementations
+//         println!("\n🔬 Running benchmarks...\n");
         
-        let (bench2, stats2) = benchmark::bench("Parallel Analysis", || {
-            analysis::analyze_roads_parallel(&roads)
-        });
-        bench2.print();
+//         let (bench1, stats1) = benchmark::bench("Simple Analysis", || {
+//             analysis::analyze_roads_simple(&roads)
+//         });
+//         bench1.print();
         
-        // Print stats from one of them (they should be the same)
-        stats1.print_summary();
+//         let (bench2, stats2) = benchmark::bench("Parallel Analysis", || {
+//             analysis::analyze_roads_parallel(&roads)
+//         });
+//         bench2.print();
         
-        // Compare
-        println!("\n📊 Performance Comparison:");
-        let speedup = bench1.duration.as_secs_f64() / bench2.duration.as_secs_f64();
-        println!("  Parallel is {:.2}x faster", speedup);
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*; // Importe tout ce qui est défini dans le fichier parent
-    use std::collections::HashMap;
-
-    #[test]
-    fn test_floyd_warshall_topology() {
-        let mut graph = OrientedGraph::new(); // Ou OrientedGraph selon votre nommage
-
-        // 1. Add nodes
-        // Les coordonnées importent peu ici car on force les distances
-        graph.add_node(Node::new(0, 49.18, -0.36));
-        graph.add_node(Node::new(1, 49.19, -0.35));
-        graph.add_node(Node::new(2, 49.20, -0.35));
-        graph.add_node(Node::new(3, 49.22, -0.34));
-        graph.add_node(Node::new(4, 49.21, -0.36));
-        graph.add_node(Node::new(5, 49.20, -0.37));
-        graph.add_node(Node::new(6, 49.20, -0.37));
-
-        // 2. Add links (Source, Dest, Distance Forcée)
-        let connections = vec![
-        (0, 1, 1.00),
-        (1, 0, 1.00),
-        (1, 2, 2.00),
-        (2, 1, 2.00),
-        (2, 4, 4.00),
-        (2, 3, 3.00),
-        (3, 2, 3.00),
-        (3, 4, 2.00),
-        (3, 5, 5.00),
-        (5, 3, 8.00),
-        (5, 6, 10.00),
-        (5, 0, 12.00),
-        (6, 5, 10.00),
-        (6, 0, 7.00),
-        (0, 6, 7.00),
-        (0, 5, 12.00)
-    ];
-
-        for (i, (src_id, dst_id, distance)) in connections.iter().enumerate() {
-            if let (Some(origin), Some(dest)) = (graph.nodes.get(src_id), graph.nodes.get(dst_id)) {
-                let mut tags = HashMap::new();
-                tags.insert("highway".to_string(), "test_road".to_string());
-                
-                // On utilise la méthode with_fixed_distance
-                let link = Link::with_fixed_distance(origin, dest, i as i64, tags, *distance);
-                graph.add_link(link);
-            }
-        }
-
-        // --- Vérifications ---
-
-        // Test basique de connectivité immédiate
-        let outgoing_3 = graph.get_outgoing_links(3);
-        println!("Output of node 3 : {} links", outgoing_3.len());
-        // Node 3 va vers : 2, 4, 5. Donc 3 liens.
-        assert_eq!(outgoing_3.len(), 3, "Node 3 devrait avoir 3 sorties");
-
-        // Préparation et affichage (pour le debug visuel)
-        let (matrix_init, id_map, n) = prepare_matrix(&graph);
-        println!("\n--- Matrice Initiale (Liens directs) ---");
-        display_matrix(&matrix_init, n, &id_map);
-
-        // Exécution de l'algorithme parallèle
-        let result = graph.floyd_warshall_par();
+//         // Print stats from one of them (they should be the same)
+//         stats1.print_summary();
         
-        println!("\n--- Résultat Floyd-Warshall ---");
-        display_matrix(&result.dists, n, &id_map);
-
-        // --- Assertions sur les plus courts chemins (Validation Mathématique) ---
-        
-        // Helper pour récupérer une distance depuis le résultat
-        let get_dist = |u: i64, v: i64| -> f64 {
-            result.get_distance(u, v).unwrap_or(f64::INFINITY)
-        };
-
-        // Cas 1 : Chemin direct 0 -> 1
-        assert_eq!(get_dist(0, 1), 1.0);
-
-        // Cas 2 : Chemin multi-sauts 0 -> 4
-        // Trajet : 0 -> 1 (1.0) -> 2 (2.0) -> 4 (4.0) = Total 7.0
-        // (Alternative via 5 est beaucoup plus longue)
-        assert_eq!(get_dist(0, 4), 7.0, "Le chemin 0->4 devrait coûter 7.0");
-
-        // Cas 3 : Un chemin qui remonte "à contre-sens" des IDs
-        // Trajet 3 -> 0
-        // Option A: 3->2(3) -> 1(2) -> 0(1) = 6.0
-        // Option B: 3->5(5) -> 0(12) = 17.0
-        assert_eq!(get_dist(3, 0), 6.0, "Le chemin 3->0 devrait passer par 2 et 1");
-
-        // Cas 4 : Nœud 4 est un puits (Sink)
-        // Il reçoit des liens mais n'en émet aucun vers les autres noeuds du set
-        assert_eq!(get_dist(4, 0), f64::INFINITY, "Node 4 ne devrait pouvoir aller nulle part");
-    }
-}
+//         // Compare
+//         println!("\n📊 Performance Comparison:");
+//         let speedup = bench1.duration.as_secs_f64() / bench2.duration.as_secs_f64();
+//         println!("  Parallel is {:.2}x faster", speedup);
+//     }
+//     Ok(())
+// }
