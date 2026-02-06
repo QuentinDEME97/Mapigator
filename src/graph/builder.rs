@@ -1,6 +1,6 @@
 use crate::graph::edge::EdgeFactory;
 use crate::graph::oriented_graph::OrientedGraph;
-use crate::graph::utils::CoordinateType;
+use crate::graph::utils::{self, CoordinateType};
 use crate::graph::vertex::VertexFactory;
 use thiserror::Error;
 
@@ -69,6 +69,7 @@ impl ManualGraphBuilder {
 
 impl GraphBuilder for ManualGraphBuilder {
   fn build(mut self) -> Result<OrientedGraph, BuildError> {
+    let mut edge_factory = EdgeFactory::new();
     let vertex_ids: Vec<usize> = self
       .vertices
       .iter()
@@ -86,9 +87,23 @@ impl GraphBuilder for ManualGraphBuilder {
       if from_idx >= vertex_ids.len() || to_idx >= vertex_ids.len() {
         return Err(BuildError::InvalidEdgeIndex);
       }
+
+      let mut computed_weight = weight.unwrap_or(0.0);
+      if (weight == None) {
+        // If weigth is some forced, we calculate it.
+        let origin = self.graph.vertices[&from_idx].coordinates;
+        let destination = self.graph.vertices[&to_idx].coordinates;
+        if let Ok(dist) = utils::get_distance(self.coordinates_type, origin, destination) {
+          computed_weight = dist;
+        } else {
+          // Handle the error, e.g., set a default or log it
+          computed_weight = 0.0;
+        }
+      }
+
       self
         .graph
-        .add_edge(vertex_ids[from_idx], vertex_ids[to_idx], Some(weight));
+        .add_edge(edge_factory.create_edge(None, from_idx, to_idx, computed_weight, None));
     }
     Ok(self.graph)
   }
@@ -107,7 +122,7 @@ mod tests {
   use super::*;
 
   #[test]
-  fn build_graph_passing_vertices_then_edges() {
+  fn build_graph_passing_vertices_then_edges() -> Result<(), Box<dyn std::error::Error>> {
     let graph = ManualGraphBuilder::new(CoordinateType::XY)
       .add_vertex((0.0, 0.0))
       .add_vertex((0.0, 1.0))
@@ -116,5 +131,10 @@ mod tests {
 
     assert_eq!(graph.vertices.len(), 2);
     assert_eq!(graph.edges.len(), 1);
+
+    assert_eq!(graph.edges[&(0 as usize)].origin, 0);
+    assert_eq!(graph.edges[&(0 as usize)].destination, 1);
+
+    Ok(())
   }
 }
