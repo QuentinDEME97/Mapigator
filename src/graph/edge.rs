@@ -10,8 +10,8 @@ pub struct Edge {
   pub tags: Option<HashMap<String, String>>,
 }
 
-struct EdgeFactory {
-  next_id: usize
+pub struct EdgeFactory {
+  next_id: usize,
 }
 
 impl EdgeFactory {
@@ -19,10 +19,17 @@ impl EdgeFactory {
     Self { next_id: 0 }
   }
 
-  pub fn create_edge(&mut self, base_id: Option<i64>, origin: usize, destination: usize, weight: f64, tags: Option<HashMap<String, String>>) -> Edge {
+  pub fn create_edge(
+    &mut self,
+    base_id: Option<i64>,
+    origin: usize,
+    destination: usize,
+    weight: f64,
+    tags: Option<HashMap<String, String>>,
+  ) -> Edge {
     let id: usize = self.next_id;
     self.next_id += 1;
-    Edge { 
+    Edge {
       id,
       base_id,
       origin,
@@ -42,8 +49,17 @@ mod tests {
     let mut factory: EdgeFactory = EdgeFactory::new();
 
     let e1: Edge = factory.create_edge(None, 0, 1, 1.0, None);
-    let e2: Edge = factory.create_edge(Some(222309), 0, 1, 1.0, Some(HashMap::from([("highway".to_string(), "footway".to_string()),])));
-  
+    let e2: Edge = factory.create_edge(
+      Some(222309),
+      0,
+      1,
+      1.0,
+      Some(HashMap::from([(
+        "highway".to_string(),
+        "footway".to_string(),
+      )])),
+    );
+
     assert_eq!(e1.id, 0);
     assert_eq!(e2.id, 1);
   }
@@ -53,15 +69,24 @@ mod tests {
     let mut factory: EdgeFactory = EdgeFactory::new();
 
     let e1: Edge = factory.create_edge(None, 0, 1, 1.0, None);
-    let e2: Edge = factory.create_edge(Some(222309), 0, 1, 1.0, Some(HashMap::from([("highway".to_string(), "footway".to_string()),])));
-  
+    let e2: Edge = factory.create_edge(
+      Some(222309),
+      0,
+      1,
+      1.0,
+      Some(HashMap::from([(
+        "highway".to_string(),
+        "footway".to_string(),
+      )])),
+    );
+
     assert_eq!(e1.base_id, None);
     assert_eq!(e2.base_id, Some(222309));
   }
 
   #[test]
-    fn test_factory_starts_at_zero() {
-        let factory = EdgeFactory::new();
-        assert_eq!(factory.next_id, 0);
-    }
+  fn test_factory_starts_at_zero() {
+    let factory = EdgeFactory::new();
+    assert_eq!(factory.next_id, 0);
+  }
 }
