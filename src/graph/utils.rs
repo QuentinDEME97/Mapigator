@@ -32,7 +32,7 @@ fn get_geo_distance(origin: (f64, f64), destination: (f64, f64)) -> f64 {
     (delta_lat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (delta_lon / 2.0).sin().powi(2);
   let c = 2.0 * a.sqrt().atan2((1.0 - a).sqrt());
 
-  r * c * 100.00
+  r * c * 1000.00
 }
 
 fn get_euclidian_distance(origin: (f64, f64), destination: (f64, f64)) -> f64 {

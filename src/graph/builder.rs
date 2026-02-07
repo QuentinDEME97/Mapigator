@@ -51,8 +51,8 @@ impl ManualGraphBuilder {
     self
   }
 
-  pub fn add_edge(mut self, from: usize, to: usize) -> Self {
-    self.edges.push((from, to, Some(0.0)));
+  pub fn add_edge(mut self, from: usize, to: usize, weight: Option<f64>) -> Self {
+    self.edges.push((from, to, weight));
     self
   }
 
@@ -89,7 +89,7 @@ impl GraphBuilder for ManualGraphBuilder {
       }
 
       let mut computed_weight = weight.unwrap_or(0.0);
-      if (weight == None) {
+      if weight == Some(-1.0) || weight == None {
         // If weigth is some forced, we calculate it.
         let origin = self.graph.vertices[&from_idx].coordinates;
         let destination = self.graph.vertices[&to_idx].coordinates;
@@ -122,18 +122,193 @@ mod tests {
   use super::*;
 
   #[test]
-  fn build_graph_passing_vertices_then_edges() -> Result<(), Box<dyn std::error::Error>> {
-    let graph = ManualGraphBuilder::new(CoordinateType::XY)
+  fn test_build_xy_graph_with_add_build() -> Result<(), Box<dyn std::error::Error>> {
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::XY)
       .add_vertex((0.0, 0.0))
       .add_vertex((0.0, 1.0))
-      .add_edge(0, 1)
+      .add_edge(0, 1, None)
       .build()?;
 
-    assert_eq!(graph.vertices.len(), 2);
-    assert_eq!(graph.edges.len(), 1);
+    assert_eq!(graph_xy.vertices.len(), 2);
+    assert_eq!(graph_xy.edges.len(), 1);
 
-    assert_eq!(graph.edges[&(0 as usize)].origin, 0);
-    assert_eq!(graph.edges[&(0 as usize)].destination, 1);
+    assert_eq!(graph_xy.edges[&(0 as usize)].origin, 0);
+    assert_eq!(graph_xy.edges[&(0 as usize)].destination, 1);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_build_xy_graph_with_list_build() -> Result<(), Box<dyn std::error::Error>> {
+    let nodes = vec![(0.0, 0.0), (0.0, 1.0)];
+
+    let edges = vec![(0, 1, None)];
+
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::XY)
+      .with_vertices(nodes)
+      .with_edges(edges)
+      .build()?;
+
+    assert_eq!(graph_xy.vertices.len(), 2);
+    assert_eq!(graph_xy.edges.len(), 1);
+
+    assert_eq!(graph_xy.edges[&(0 as usize)].origin, 0);
+    assert_eq!(graph_xy.edges[&(0 as usize)].destination, 1);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_build_geo_graph_with_add_build() -> Result<(), Box<dyn std::error::Error>> {
+    let graph_geo = ManualGraphBuilder::new(CoordinateType::GEO)
+      .add_vertex((48.8566, 2.3522))
+      .add_vertex((45.7640, 4.8357))
+      .add_edge(0, 1, None)
+      .build()?;
+
+    assert_eq!(graph_geo.vertices.len(), 2);
+    assert_eq!(graph_geo.edges.len(), 1);
+
+    assert_eq!(graph_geo.edges[&(0 as usize)].origin, 0);
+    assert_eq!(graph_geo.edges[&(0 as usize)].destination, 1);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_build_geo_graph_with_list_build() -> Result<(), Box<dyn std::error::Error>> {
+    let nodes = vec![(48.8566, 2.3522), (45.7640, 4.8357)];
+
+    let edges = vec![(0, 1, None)];
+
+    let graph_geo = ManualGraphBuilder::new(CoordinateType::GEO)
+      .with_vertices(nodes)
+      .with_edges(edges)
+      .build()?;
+
+    assert_eq!(graph_geo.vertices.len(), 2);
+    assert_eq!(graph_geo.edges.len(), 1);
+
+    assert_eq!(graph_geo.edges[&(0 as usize)].origin, 0);
+    assert_eq!(graph_geo.edges[&(0 as usize)].destination, 1);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_euclidian_distance_is_correct_with_add_build() -> Result<(), Box<dyn std::error::Error>> {
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::XY)
+      .add_vertex((0.0, 0.0))
+      .add_vertex((0.0, 1.0))
+      .add_edge(0, 1, None)
+      .build()?;
+
+    assert_eq!(graph_xy.edges[&(0 as usize)].weight, 1.0);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_euclidian_distance_is_correct_with_list_build() -> Result<(), Box<dyn std::error::Error>>
+  {
+    let nodes = vec![(0.0, 0.0), (0.0, 1.0)];
+
+    let edges = vec![(0, 1, None)];
+
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::XY)
+      .with_vertices(nodes)
+      .with_edges(edges)
+      .build()?;
+
+    assert_eq!(graph_xy.edges[&(0 as usize)].weight, 1.0);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_euclidian_distance_is_forced_with_add_build() -> Result<(), Box<dyn std::error::Error>> {
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::XY)
+      .add_vertex((0.0, 0.0))
+      .add_vertex((0.0, 1.0))
+      .add_edge(0, 1, Some(23.0))
+      .build()?;
+
+    assert_eq!(graph_xy.edges[&(0 as usize)].weight, 23.0);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_euclidian_distance_is_forced_with_list_build() -> Result<(), Box<dyn std::error::Error>> {
+    let nodes = vec![(0.0, 0.0), (0.0, 1.0)];
+
+    let edges = vec![(0, 1, Some(23.0))];
+
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::XY)
+      .with_vertices(nodes)
+      .with_edges(edges)
+      .build()?;
+
+    assert_eq!(graph_xy.edges[&(0 as usize)].weight, 23.0);
+
+    Ok(())
+  }
+
+  // GEO distances
+  #[test]
+  fn test_geo_distance_is_correct_with_add_build() -> Result<(), Box<dyn std::error::Error>> {
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::GEO)
+      .add_vertex((49.09920, 0.28713))
+      .add_vertex((49.09984, 0.28720))
+      .add_edge(0, 1, None)
+      .build()?;
+
+    assert_eq!(graph_xy.edges[&(0 as usize)].weight, 71.34700096697131);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_geo_distance_is_correct_with_list_build() -> Result<(), Box<dyn std::error::Error>> {
+    let nodes = vec![(49.09920, 0.28713), (49.09984, 0.28720)];
+
+    let edges = vec![(0, 1, None)];
+
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::GEO)
+      .with_vertices(nodes)
+      .with_edges(edges)
+      .build()?;
+
+    assert_eq!(graph_xy.edges[&(0 as usize)].weight, 71.34700096697131);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_geo_distance_is_forced_with_add_build() -> Result<(), Box<dyn std::error::Error>> {
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::GEO)
+      .add_vertex((49.09920, 0.28713))
+      .add_vertex((49.09984, 0.28720))
+      .add_edge(0, 1, Some(23.0))
+      .build()?;
+
+    assert_eq!(graph_xy.edges[&(0 as usize)].weight, 23.0);
+
+    Ok(())
+  }
+
+  #[test]
+  fn test_geo_distance_is_forced_with_list_build() -> Result<(), Box<dyn std::error::Error>> {
+    let nodes = vec![(49.09920, 0.28713), (49.09984, 0.28720)];
+
+    let edges = vec![(0, 1, Some(23.0))];
+
+    let graph_xy = ManualGraphBuilder::new(CoordinateType::GEO)
+      .with_vertices(nodes)
+      .with_edges(edges)
+      .build()?;
+
+    assert_eq!(graph_xy.edges[&(0 as usize)].weight, 23.0);
 
     Ok(())
   }
